@@ -35,10 +35,11 @@ def get_d_start(delta, d):
     s = 0.5*(delta + d_ip1 + d_i)
     h = torch.sqrt(s*(s-d_ip1)*(s-d_i)*(s-delta)) * 0.5 / delta
     d_min = torch.minimum(d_ip1, d_i)
-    mask = 1 - (d_ip1 + d_i <= delta )
-    d_star = mask * torch.where(torch.abs(d_i**2-d_ip1**2) >= delta **2, d_min, h)
-    
-    d_star = (d[:,1:].sign() * d[:,:-1].sign() == 1) * d_star
+    mask = 1 - ( d_ip1 + d_i <= delta )
+
+    d_star = mask * torch.where(torch.abs(d_i**2-d_ip1**2) >= delta**2, d_min, h)    
+    d_star = (torch.sign(d[...,1:]) * torc.sign(d[...j,:-1]) == 1) * d_star
+
     return d_star
 
 def get_error_bound(delta, beta, d_star, density):

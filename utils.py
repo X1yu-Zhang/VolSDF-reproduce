@@ -12,7 +12,7 @@ get_gradient = lambda x, y:torch.autograd.grad(
 )[0]
 
 
-cal_density = lambda d, beta:1/beta*(0.5+0.5*torch.sign(d)*(1-torch.exp(-torch.abs(d)/beta)))
+cal_density = lambda d, beta:1/beta*(0.5+0.5*torch.sign(d)*laplace(d, beta))
 
 laplace = lambda s, beta: torch.exp(-torch.abs(s)/beta)
 
