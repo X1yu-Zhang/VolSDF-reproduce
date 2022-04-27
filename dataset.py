@@ -28,7 +28,7 @@ def load_dataset(path, test = 0):
         t = t[:3] / t[3]
         # t = - R.T @ t
         pose = np.concatenate([R.T,t], axis=-1)
-        img = cv2.cvtColor(cv2.imread(os.path.join(images_path, image_name)), cv2.COLOR_BGR2RGB)
+        img = cv2.cvtColor(cv2.imread(os.path.join(images_path, image_name)), cv2.COLOR_BGR2RGB) / 255
 
         rays_rgb.append(get_rays_rgb(pose, img, K))
         if test:    
