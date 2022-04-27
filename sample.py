@@ -25,7 +25,7 @@ def uniform_sampling(near, radius, num, rays_o, rays_d, take_sphere_intersection
 
 
 def inverse_CDF_sampling(cdf, u, bins, device):
-    u = u.expand([cdf.shape[0], u.shape[0]])
+    u = u.expand([cdf.shape[0], u.shape[-1]])
     u = u.contiguous()
     idx_x = torch.searchsorted(cdf, u, right=True)
     left = torch.max(torch.zeros_like(idx_x, device=device), idx_x - 1)
@@ -146,10 +146,8 @@ def sampling_algorithm(rays_o, rays_d, model, near, radius, epsilon, N_init, N_s
         else:
             u = torch.rand([cdf.shape[0], N], device=device)
         samples = inverse_CDF_sampling(cdf, u, t, device)
-
         if not converge and iter < max_iter:
             t, t_idx = torch.sort(torch.cat([t, samples], dim=-1), dim=-1)
-
     t = samples
     t_extra = torch.Tensor([near, 2*radius]).expand([rays_d.shape[0], 2]).to(device)
     if N_sample_extra > 0:

@@ -27,9 +27,10 @@ class Embedding:
     def embed(self, x):
         ##  x: [N_rays, 3]
         ## self.freq: [length]
-        
+        # print(x.shape)
         embed_vec = x[..., None] * self.freq # [N_rays, 3, length]
         embed_vec = torch.stack([func(embed_vec) for func in self.functs], dim = -1) # [N_rays, 3, length, 2]
+        # print(embed_vec.shape)
         embed_vec = embed_vec.permute([0,2,3,1]).reshape([embed_vec.shape[0], -1])  # [N_rays, length, 2, 3] [N_rays, 3 * 2 * length]
         x = torch.cat([x, embed_vec], dim = -1)
         return x

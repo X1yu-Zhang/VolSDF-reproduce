@@ -9,6 +9,7 @@ laplace = lambda s, beta: torch.exp(-torch.abs(s)/beta)
 
 get_sample_pts = lambda rays_o, rays_d, t: rays_o[:, None, :] + t[..., None] * rays_d[:, None, :]
 
+to8b = lambda x:(255*np.clip(x, 0, 1)).astype(np.uint8)
 
 import numpy as np
 from model import VolSDF, GeometryNetwork, RadienceFieldNetwork, NeRF
@@ -51,15 +52,28 @@ def create_model(**config):
     device = config['device']
     posit_network = GeometryNetwork(**config['geometry_config']).to(device)
     render_network = RadienceFieldNetwork(**config['radiance_config']).to(device)
+
     if config['bg_render']:
         NeRF = NeRF(**config['nerf_config']).to(device)
     else:
         NeRF = None
 
     model = VolSDF(posit_network, render_network, NeRF, r, beta)
-    optimizer = optim.Adam(params=list(model.parameters())+[model.beta], lr=lr, betas=(0.9, 0.999))
+    grad_var = list(posit_network.parameters()) + list(render_network.parameters()) + [model.beta]
+    optimizer = optim.Adam(params=grad_var, lr=lr, betas=(0.9, 0.999))
+    start = 0
 
-    return optimizer, model
+    if config['pretrained_model'] is not None:
+        print("loading pretrained model ...")
+        state = torch.load(config['pretrained_model'])
+        posit_network.load_state_dict(state['geometry_network'])   
+        render_network.load_state_dict(state['rendering_network'])
+        beta = state['beta']
+        # optimizer.load_state_dict(config['optimizer'])
+        # start = config['step']
+        pass
+    print("Done!")
+    return optimizer, model, start
 
 
 def config():
@@ -67,7 +81,10 @@ def config():
     args.add_argument("--config", is_config_file=True) 
     args.add_argument("--device", type=str, default='cuda' )
     
-    args.add_argument("--datadir", type=str, default='./data/DTU/scan24')
+    ## dataset config
+    args.add_argument("--datadir", type=str, default='./data')
+    args.add_argument("--datatype", choices=['DTU', 'BlendedMVS'], default="DTU")
+    args.add_argument("--scan_id", type=int, default=24)
     args.add_argument("--white_bkgd", action="store_true")
     
     ## sampling algorithm parameters
@@ -110,6 +127,7 @@ def config():
     args.add_argument("--test", type=int, default= 0)
     args.add_argument("--render_only", action="store_true")
 
+    args.add_argument("--pretrained_model", type=str, default=None)
     args.add_argument("--output", type=str, default='./output')
 
     args = args.parse_args()
@@ -132,6 +150,8 @@ def split_config(config):
     
     dataset_config = {
         "path" : config['datadir'],
+        "datatype" : config['datatype'],
+        "scan_id": config['scan_id'],
         "test" : config['test']
     }
 
@@ -154,7 +174,8 @@ def split_config(config):
         "white_bkgd": config['white_bkgd'],
         "sampling_config": sampling_config,
         "bg_render": config['bg_render'],
-        "device": config['device']
+        "device": config['device'], 
+        "render_only": config['render_only'],
     }
 
     geometry_config = {
@@ -191,6 +212,7 @@ def split_config(config):
         "radius": config['radius'],
         "beta": config['beta'],
         "bg_render": config['bg_render'],
+        "pretrained_model": config['pretrained_model'],
         "device": config['device']
     }
     
@@ -198,9 +220,11 @@ def split_config(config):
         "model_config": model_config,
         "dataset_config": dataset_config,
         "rendering_config": rendering_config,           
-        "device": config['device']
+        "device": config['device'],
+        "render_only": config['render_only'],
+        "output": config['output'],
+        "scan_id": config['scan_id']
     }
-    
     
     output_config.update(training_config)
 

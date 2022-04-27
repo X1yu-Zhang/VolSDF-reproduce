@@ -1,11 +1,12 @@
 import torch
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
-from dataset import load_dataset, RaysDataset
+from dataset import load_dataset, RaysDataset, load_test_data
 from tqdm import tqdm, trange
 from sample import sampling_algorithm
 from utils import * 
 import os
+import imageio
 from torch.utils.tensorboard import SummaryWriter
 
 def output2rgb(t, density, output, white_bkgd, device):
@@ -37,17 +38,18 @@ def volume_rendering(rays_o, rays_d, model, device, **rendering_config):
     output = output.reshape(pts_shape)
 
     rgb = output2rgb(t, density, output, white_bkgd, device)
+    gradient = None
 
-    pts_loss_shape = pts_loss.shape
-    pts_near = pts_loss.reshape([-1,3])
-    pts_far = torch.empty(rays_d.shape[0], 3).uniform_(-model.r, model.r).to(device)
-    pts_loss = torch.cat([pts_near, pts_far], dim = 0)
-    
-    gradient = model.gradient(pts_loss)
+    if rendering_config['render_only']:
+        pts_near = pts_loss.reshape([-1,3])
+        pts_far = torch.empty(rays_d.shape[0], 3).uniform_(-model.r, model.r).to(device)
+        pts_loss = torch.cat([pts_near, pts_far], dim = 0)
+        
+        gradient = model.gradient(pts_loss)
     
     return rgb, gradient
 
-def save_model(ckpt, model, optimizer, name):
+def save_model(ckpt, model, step, optimizer, name):
     if not os.path.exists(ckpt):
         os.makedirs(ckpt)
     path = os.path.join(ckpt, "{}.ckpt".format(name))
@@ -55,12 +57,18 @@ def save_model(ckpt, model, optimizer, name):
         'geometry_network': model.position_network.state_dict(), 
         'rendering_network': model.radience_field_network.state_dict(),
         'beta': model.beta,
+        'step': step,
         'optimizer': optimizer.state_dict(),
         }, path)
 
+def save_img(output, datatype, scan_id, img, **config):
+    path = os.path.join(output, datatype+"_"+"scan{}".format(scan_id)+'png')
+    imageio.imwrite(path, img)
+    return 
+    
 def train(lr, lr_decay, N_iters, batch_size, l, i_save, ckpt, device,i_show_loss, **others):
     print("creating model...")
-    optimizer, model = create_model(**others['model_config'])
+    optimizer, model, start = create_model(**others['model_config'])
     print("loading data ...")
     all_rays_rgb = load_dataset(**others['dataset_config'])
     print("loading finished")
@@ -70,7 +78,6 @@ def train(lr, lr_decay, N_iters, batch_size, l, i_save, ckpt, device,i_show_loss
     train_loader = DataLoader(train_dataset, batch_size = batch_size, shuffle=True)
     print("done!")
 
-    start = 0
     global_step = start
     loss_avg = 0.
     cnt_avg = 0.
@@ -95,7 +102,7 @@ def train(lr, lr_decay, N_iters, batch_size, l, i_save, ckpt, device,i_show_loss
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = new_lrate
                 if global_step % i_save == 0:
-                    save_model(ckpt, model, optimizer, global_step)
+                    save_model(ckpt, model, global_step, optimizer, global_step)
 
                 loss_avg += float(loss)
                 cnt_avg += 1.
@@ -109,11 +116,40 @@ def train(lr, lr_decay, N_iters, batch_size, l, i_save, ckpt, device,i_show_loss
                 if global_step > N_iters:
                     break
         
-    save_model(ckpt, model, optimizer, 'final')
+    save_model(ckpt, model, global_step, optimizer, 'final')
     writer.close()
+
+def test(batch_size, device, output, **config):
+    _, model, _ = create_model(**config['model_config'])
+    K, pose, img = load_test_data(**config['dataset_config'])
+    H, W = img.shape[:-1]
+    rays = get_rays_with_pose(H, W, K, pose)
+
+    rgbs = []
+    for i in trange(0, rays.shape[0], batch_size):
+        data_slice = rays[i:i+batch_size]
+        rays_o, rays_d = torch.split(torch.from_numpy(data_slice).float(), [3,3], dim = -1)
+        rays_o = rays_o.to(device)
+        rays_d = rays_d.to(device)
+
+        rgb, _ = volume_rendering(rays_o, rays_d, model, **config['rendering_config'])
+
+        rgbs.append(rgb.detach().cpu())
+
+    rgbs = torch.cat(rgbs, dim = 0).reshape([H, W, 3]).numpy()
+    img_render = to8b(rgbs)
+
+    save_img(output, **config['dataset_config'], img=img_render)
+    
+    loss = np.linalg.norm(rgbs - img, ord=1)
+    print("render_loss: ", loss)
+    pass
 def main():
     args = config()
-    train(**args)
+    if args['render_only']: 
+        test(**args)
+    else:
+        train(**args)
     pass
 
 if __name__ == "__main__":
