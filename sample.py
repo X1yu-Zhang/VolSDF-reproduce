@@ -42,26 +42,23 @@ def inverse_CDF_sampling(cdf, u, bins, device):
     samples = sample_interval[..., 0] + proportion_interval * (sample_interval[..., 1] - sample_interval[..., 0])
     return samples
 
-
 def get_d_start(delta, d):
     d_ip1 = torch.abs(d[..., 1:])
     d_i = torch.abs(d[..., :-1])
     s = 0.5 * (delta + d_ip1 + d_i)
-    under_sqrt = s * (s - d_ip1) * (s - d_i) * (s - delta)
+    h = torch.sqrt(s * (s - d_ip1) * (s - d_i) * (s - delta)) * 2/ (delta + 1e-6)
+    h = torch.nan_to_num(h, 0)
+
     d_min = torch.minimum(d_ip1, d_i)
-    mask1 = d_ip1 + d_i <= delta
+    mask1 = d_ip1 + d_i > delta
     mask2 = torch.abs(d_i**2 - d_ip1**2) >= delta ** 2
 
-    d_star = torch.zeros_like(delta)
-
-    d_star[mask2] = d_min[mask2]
-    mask = ~(mask1 | mask2) & (delta < d_i + d_ip1)
-    d_star[mask] = 2 * torch.sqrt(under_sqrt[mask]) / (delta[mask] + 1e-6)
+    d_star = torch.where(mask2, d_min, h)
+    d_star = torch.where(mask1, d_star, torch.zeros_like(h, device=h.device))
 
     d_star = (torch.sign(d[..., 1:]) * torch.sign(d[..., :-1]) == 1) * d_star
 
     return d_star
-
 
 def get_error_bound(delta, sdf, beta, d_star):
     density = cal_density(sdf, beta)
