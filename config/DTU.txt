@@ -1,0 +1,27 @@
+datadir = ./data/DTU/scan24
+
+N_init = 128
+N_sample = 64
+N_final = 64
+N_sample_extra = 32
+epsilon = 0.1
+max_iter = 5
+search_iter = 10
+near = 0
+
+o_freq = 6
+d_freq = 4
+feature_dim = 256
+radius = 3
+beta = 0.1
+scale = 1
+
+lr = 5e-4
+lr_decay = 250
+training_iters = 20000
+batch_size = 512
+lambda = 0.1
+
+i_save = 1000
+ckpt = ./ckpt
+
