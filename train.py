@@ -67,7 +67,7 @@ def train(lr, lr_decay, N_iters, batch_size, l, i_save, ckpt, device,i_show_loss
 
     print("creating dataloader")
     train_dataset = RaysDataset(all_rays_rgb)
-    train_loader = DataLoader(train_dataset, batch_size = batch_size, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size = batch_size, shuffle=True)
     print("done!")
 
     start = 0
