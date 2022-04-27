@@ -24,8 +24,8 @@ def output2rgb(t, density, output, white_bkgd, device):
 def volume_rendering(rays_o, rays_d, model, device, **rendering_config):
 
     white_bkgd = rendering_config['white_bkgd']
-
-    t, t_loss = sampling_algorithm(rays_o, rays_d, model, **rendering_config['sampling_config'])
+    with torch.no_grad():
+        t, t_loss = sampling_algorithm(rays_o, rays_d, model, **rendering_config['sampling_config'])
     pts = get_sample_pts(rays_o, rays_d, t)
     pts_loss = get_sample_pts(rays_o, rays_d, t_loss)
 
@@ -40,7 +40,7 @@ def volume_rendering(rays_o, rays_d, model, device, **rendering_config):
     rgb = output2rgb(t, density, output, white_bkgd, device)
     gradient = None
 
-    if rendering_config['render_only']:
+    if not rendering_config['render_only']:
         pts_near = pts_loss.reshape([-1,3])
         pts_far = torch.empty(rays_d.shape[0], 3).uniform_(-model.r, model.r).to(device)
         pts_loss = torch.cat([pts_near, pts_far], dim = 0)
@@ -62,7 +62,9 @@ def save_model(ckpt, model, step, optimizer, name):
         }, path)
 
 def save_img(output, datatype, scan_id, img, **config):
-    path = os.path.join(output, datatype+"_"+"scan{}".format(scan_id)+'png')
+    if not os.path.exists(output):
+        os.mkdir(output)
+    path = os.path.join(output, datatype+"_"+"scan{}".format(scan_id)+'.png')
     imageio.imwrite(path, img)
     return 
     
@@ -141,7 +143,7 @@ def test(batch_size, device, output, **config):
 
     save_img(output, **config['dataset_config'], img=img_render)
     
-    loss = np.linalg.norm(rgbs - img, ord=1)
+    loss = np.linalg.norm(rgbs - img, ord=1, axis = -1)
     print("render_loss: ", loss)
     pass
 def main():

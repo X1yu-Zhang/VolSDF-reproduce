@@ -1,4 +1,4 @@
-datadir = ./data/DTU/scan24
+datadir = ./data
 white_bkgd = True
 
 N_init = 128
