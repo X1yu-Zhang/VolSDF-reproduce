@@ -4,8 +4,8 @@ This repo reproduces [VolSDF](https://arxiv.org/abs/2106.12052), and its officia
 
 ## TODO
 
-[ ] Implement background rendering.
-[ ] Optimize training process to avoid OOM and improve the utilization of graphics memory.
+- [ ] Implement background rendering.
+- [ ] Optimize training process to avoid OOM and improve the utilization of graphics memory.
 
 ## Dataset 
 
