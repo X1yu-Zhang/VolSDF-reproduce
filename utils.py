@@ -58,20 +58,23 @@ def create_model(**config):
     else:
         NeRF = None
 
-    model = VolSDF(posit_network, render_network, NeRF, r, beta)
-    grad_var = list(posit_network.parameters()) + list(render_network.parameters()) + [model.beta]
-    optimizer = optim.Adam(params=grad_var, lr=lr, betas=(0.9, 0.999))
     start = 0
-
     if config['pretrained_model'] is not None:
         print("loading pretrained model ...")
         state = torch.load(config['pretrained_model'])
         posit_network.load_state_dict(state['geometry_network'])   
         render_network.load_state_dict(state['rendering_network'])
         beta = state['beta']
-        # optimizer.load_state_dict(config['optimizer'])
-        # start = config['step']
+        start = config['step']
         pass
+
+    model = VolSDF(posit_network, render_network, NeRF, r, beta)
+    grad_var = list(posit_network.parameters()) + list(render_network.parameters()) + [model.beta]
+    optimizer = optim.Adam(params=grad_var, lr=lr, betas=(0.9, 0.999))
+
+    if config['pretrained_model'] is not None: 
+        optimizer.load_state_dict(config['optimizer'])
+
     print("Done!")
     return optimizer, model, start
 
