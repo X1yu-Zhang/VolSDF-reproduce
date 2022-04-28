@@ -161,7 +161,7 @@ def test(batch_size, device, output, **config):
 
     save_img(output, **config['dataset_config'], img=img_render)
     
-    loss = np.linalg.norm(rgbs - img, ord=1, axis = -1)
+    loss = np.mean(np.linalg.norm(rgbs - img, ord=1, axis = -1))
     print("render_loss: ", loss)
     pass
 def main():
