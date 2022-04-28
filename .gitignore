@@ -3,3 +3,5 @@ runs
 ckpt
 output
 data/*
+nohup.out
+logs
