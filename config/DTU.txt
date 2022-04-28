@@ -19,7 +19,7 @@ scale = 1
 
 lr = 5e-4
 lr_decay = 250
-training_iters = 20000
+training_iters = 200000
 batch_size = 512
 lambda = 0.1
 

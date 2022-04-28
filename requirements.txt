@@ -2,5 +2,5 @@ ConfigArgParse==1.5.3
 imageio==2.16.1
 numpy==1.21.5
 opencv_python==4.5.5.62
-torch==1.8.2+cu111
+torch==1.8.1
 tqdm==4.62.3

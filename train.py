@@ -24,8 +24,8 @@ def output2rgb(t, density, output, white_bkgd, device):
 def volume_rendering(rays_o, rays_d, model, device, **rendering_config):
 
     white_bkgd = rendering_config['white_bkgd']
-    with torch.no_grad():
-        t, t_loss = sampling_algorithm(rays_o, rays_d, model, **rendering_config['sampling_config'])
+    # with torch.no_grad():
+    t, t_loss = sampling_algorithm(rays_o, rays_d, model, **rendering_config['sampling_config'])
     pts = get_sample_pts(rays_o, rays_d, t)
     pts_loss = get_sample_pts(rays_o, rays_d, t_loss)
 
@@ -82,15 +82,20 @@ def train(lr, lr_decay, N_iters, batch_size, l, i_save, ckpt, device,i_show_loss
 
     global_step = start
     loss_avg = 0.
+    rgb_avg = 0.
+    eik_avg = 0.
     cnt_avg = 0.
     writer = SummaryWriter()
-    with tqdm(total=N_iters - start, postfix={"loss": 0}) as t:
+    with tqdm(total=N_iters - start) as t:
         while global_step < N_iters:
             for idx, data in enumerate(train_loader):
                 rays_o, rays_d, target = torch.split(data.to(device), [3,3,3], dim = 1)
                 rgb, gradient = volume_rendering(rays_o, rays_d, model, **others['rendering_config'])
 
-                loss = F.l1_loss(rgb, target) + l * (F.mse_loss(gradient, torch.zeros_like(gradient))-1)
+                rgb_loss = F.l1_loss(rgb, target)
+                eik_loss = torch.mean(torch.norm(gradient, p=2, dim = -1) - 1)
+
+                loss = rgb_loss + l * eik_loss
 
                 optimizer.zero_grad()
                 loss.backward()
@@ -106,12 +111,18 @@ def train(lr, lr_decay, N_iters, batch_size, l, i_save, ckpt, device,i_show_loss
                 if global_step % i_save == 0:
                     save_model(ckpt, model, global_step, optimizer, global_step)
 
+                rgb_avg += float(rgb_loss)
+                eik_avg += float(eik_loss)
                 loss_avg += float(loss)
                 cnt_avg += 1.
 
                 if global_step % i_show_loss == 0:
                     writer.add_scalar('Loss', loss_avg / cnt_avg, global_step)
-                    t.set_postfix({"loss": loss_avg / cnt_avg})
+
+                    t.set_postfix({"rgb": rgb_avg / cnt_avg,"eik": eik_avg/cnt_avg, "loss": loss_avg / cnt_avg})
+
+                    eik_avg = 0
+                    rgb_avg = 0
                     loss_avg = 0
                     cnt_avg = 0
                 t.update()
