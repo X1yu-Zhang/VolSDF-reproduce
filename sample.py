@@ -81,7 +81,7 @@ def sampling_algorithm(rays_o, rays_d, model, near, radius, epsilon, N_init, N_s
 
     T = samples
     dist = T[..., 1:] - T[..., :-1]
-    beta_p = torch.sqrt(1 / (1 + torch.log(1 + epsilon)) * (torch.sum(dist ** 2, dim=-1)))
+    beta_p = torch.sqrt(torch.sum(dist ** 2, dim=-1)/torch.log(1 + epsilon)) / 2
     beta_p = beta_p[..., None]
     beta = beta.repeat([rays_o.shape[0], 1])
     iter = 0
@@ -141,7 +141,7 @@ def sampling_algorithm(rays_o, rays_d, model, near, radius, epsilon, N_init, N_s
             cdf = torch.cat([torch.zeros_like(pdf[..., 0,None]), torch.cumsum(pdf, -1)], dim=-1)
             N = N_final
 
-        if (not converge and iter < max_iter) or (not render_only):
+        if (not converge and iter < max_iter) or (render_only):
             u = torch.linspace(0, 1, N, device=device)
         else:
             u = torch.rand([cdf.shape[0], N], device=device)
@@ -151,7 +151,7 @@ def sampling_algorithm(rays_o, rays_d, model, near, radius, epsilon, N_init, N_s
     t = samples
     t_extra = torch.Tensor([near, 2*radius]).expand([rays_d.shape[0], 2]).to(device)
     if N_sample_extra > 0:
-        if render_only:
+        if not render_only:
             idx = torch.randperm(t.shape[1], device=device)[:N_sample_extra]
         else:
             idx = torch.arange(0, t.shape[1], device=device)[:N_sample_extra]

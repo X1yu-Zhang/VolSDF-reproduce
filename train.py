@@ -12,7 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 def output2rgb(t, density, output, white_bkgd, device):
     # t = torch.cat([t, torch.Tensor([1e10]).expand([t.shape[0], 1])], dim = -1)
     delta = t[..., 1:] - t[..., :-1]
-    p = -delta * density[...,:-1] # 1 ... m-1
+    p = torch.exp(-delta * density[...,:-1]) # 1 ... m-1
     T = torch.cat([torch.zeros([p.shape[0], 1], device=device), torch.cumprod(p, dim = -1)], dim = -1) # 1 ... m
     tau = torch.cat([(1 - p) * T[..., : -1] , T[..., -1, None]], dim = -1)
     rgb = torch.sum(tau[..., None] * output, dim = 1)
@@ -93,7 +93,7 @@ def train(lr, lr_decay, N_iters, batch_size, l, i_save, ckpt, device,i_show_loss
                 rgb, gradient = volume_rendering(rays_o, rays_d, model, **others['rendering_config'])
 
                 rgb_loss = F.l1_loss(rgb, target)
-                eik_loss = torch.mean(torch.norm(gradient, p=2, dim = -1) - 1)
+                eik_loss = torch.mean((torch.norm(gradient, p=2, dim = -1) - 1)**2)
 
                 loss = rgb_loss + l * eik_loss
 

@@ -52,7 +52,7 @@ class GeometryNetwork(nn.Module):
 
         for idx, layer in enumerate(self.pts_linears):
             if idx == D - 1:
-                nn.init.normal_(layer.weight, mean=np.sqrt(np.pi) / np.sqrt(W))
+                nn.init.normal_(layer.weight, mean=np.sqrt(np.pi) / np.sqrt(W), std=0.0001)
                 nn.init.constant_(layer.bias, -bias)
             elif idx == 0 and embed_length > 0:
                 nn.init.constant_(layer.bias, 0)
@@ -82,7 +82,7 @@ class GeometryNetwork(nn.Module):
         for i, model in enumerate(self.pts_linears):
             h = self.softplus(model(h))
             if i+1 in self.skip_connect:
-                h = torch.cat([x,h], dim = -1)
+                h = torch.cat([x,h], dim = -1) / np.sqrt(2)
         
         h = self.feature_linear(h)
         return h[..., :1], h[..., 1:]
@@ -138,7 +138,7 @@ class VolSDF(nn.Module):
         self.r = r
 
     def forward(self, x, view):
-        beta = torch.abs(self.beta) + 1e-7
+        beta = torch.abs(self.beta) + 1e-4
         sdf, feature, gradient = self.position_network(x)
         raw_color = self.radience_field_network(x, view, gradient, feature)
         density = cal_density(sdf, beta)
@@ -153,15 +153,16 @@ class VolSDF(nn.Module):
         d = torch.minimum(d, self.r - torch.norm(x, dim = -1, p=2, keepdim=True))
         return d
 
-    def density_from_sdf(self, d):  
-        density = cal_density(d, torch.abs(self.beta) + 1e-7)
+    def density_from_sdf(self, sdf):  
+        density = cal_density(sdf, torch.abs(self.beta) + 1e-4)
         return density
 
     def density(self, x):
-        d, _ = self.position_network.output(x)
-        d = torch.minimum(d, self.r - torch.norm(x, dim = -1, p=2, keepdim=True)) 
+        sdf, _ = self.position_network.output(x)
+        sdf = torch.minimum(sdf, self.r - torch.norm(x, dim = -1, p=2, keepdim=True)) 
         density = self.density_from_sdf(d)
         return density
+
 class NeRF(nn.Module):
     def __init__(self, D = 8, W = 256, input_ch = 3, input_ch_view = 3, output_ch = 4, skip_connect = [4], o_freq = 10, d_freq = 4, log_sampling = True, device='cuda'):
         super(NeRF, self).__init__()
