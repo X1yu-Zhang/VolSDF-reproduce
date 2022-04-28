@@ -7,7 +7,7 @@ from sample import sampling_algorithm
 from utils import * 
 import os
 import imageio
-from torch.utils.tensorboard import SummaryWriter
+import logging
 
 def output2rgb(t, density, output, white_bkgd, device):
     # t = torch.cat([t, torch.Tensor([1e10]).expand([t.shape[0], 1])], dim = -1)
@@ -85,7 +85,16 @@ def train(lr, lr_decay, N_iters, batch_size, l, i_save, ckpt, device,i_show_loss
     rgb_avg = 0.
     eik_avg = 0.
     cnt_avg = 0.
-    writer = SummaryWriter()
+
+    if not os.path.exists('./logs'):
+        os.mkdir('./logs')
+
+    logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s %(levelname)-8s %(message)s',
+                    datefmt='%m-%d %H:%M',
+                    filename='./logs/training.log',
+                    filemode='w+')
+    
     with tqdm(total=N_iters - start) as t:
         while global_step < N_iters:
             for idx, data in enumerate(train_loader):
@@ -101,11 +110,13 @@ def train(lr, lr_decay, N_iters, batch_size, l, i_save, ckpt, device,i_show_loss
                 loss.backward()
                 optimizer.step()
 
+                logging.info("step: %-6d, rgb_loss: %9.5f, eik_loss: %9.5f, loss: %9.5f, beta: %9.5f"%(global_step, float(rgb_loss), float(eik_loss), float(loss), float(model.beta)))
                 global_step += 1
 
                 decay_rate = 0.1
                 decay_steps = lr_decay * 1000
                 new_lrate = lr * (decay_rate ** (global_step / decay_steps))
+
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = new_lrate
                 if global_step % i_save == 0:
@@ -117,10 +128,7 @@ def train(lr, lr_decay, N_iters, batch_size, l, i_save, ckpt, device,i_show_loss
                 cnt_avg += 1.
 
                 if global_step % i_show_loss == 0:
-                    writer.add_scalar('Loss', loss_avg / cnt_avg, global_step)
-
                     t.set_postfix({"rgb": rgb_avg / cnt_avg,"eik": eik_avg/cnt_avg, "loss": loss_avg / cnt_avg})
-
                     eik_avg = 0
                     rgb_avg = 0
                     loss_avg = 0
@@ -130,7 +138,6 @@ def train(lr, lr_decay, N_iters, batch_size, l, i_save, ckpt, device,i_show_loss
                     break
         
     save_model(ckpt, model, global_step, optimizer, 'final')
-    writer.close()
 
 def test(batch_size, device, output, **config):
     _, model, _ = create_model(**config['model_config'])

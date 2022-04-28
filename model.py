@@ -134,7 +134,7 @@ class VolSDF(nn.Module):
         self.radience_field_network = rendering_network
         self.NeRF = NeRF
 
-        self.beta = torch.Tensor([beta]).to(device)
+        self.beta = nn.Parameter(torch.tensor(beta, device=device))
         self.r = r
 
     def forward(self, x, view):
