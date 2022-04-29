@@ -86,6 +86,11 @@ class GeometryNetwork(nn.Module):
         
         h = self.feature_linear(h)
         return h[..., :1], h[..., 1:]
+    
+    def sdf(self, x):
+        sdf, _ = self.output(x)
+        bound = self.bound_scale * (self.r - torch.norm(x, p=2, dim = -1, keepdim=True))
+        return torch.minimum(sdf, bound)
                 
     def gradient_for_loss(self, x):
         x.requires_grad_(True)
@@ -143,23 +148,20 @@ class VolSDF(nn.Module):
         raw_color = self.radience_field_network(x, view, gradient, feature)
         density = cal_density(sdf, beta)
         # density = (0.5+0.5*torch.sign(d)*(1-torch.exp(-torch.abs(d)/beta))) * 1 / beta
-        return density, raw_color
+        return density, raw_color, gradient
 
     def gradient(self, x):
         return self.position_network.gradient_for_loss(x)
 
     def get_sdf(self, x):
-        d, _ = self.position_network.output(x)
-        d = torch.minimum(d, self.r - torch.norm(x, dim = -1, p=2, keepdim=True))
-        return d
+        return self.position_network.sdf(x)
 
     def density_from_sdf(self, sdf):  
         density = cal_density(sdf, torch.abs(self.beta) + 1e-4)
         return density
 
     def density(self, x):
-        sdf, _ = self.position_network.output(x)
-        sdf = torch.minimum(sdf, self.r - torch.norm(x, dim = -1, p=2, keepdim=True)) 
+        sdf = self.position_network.sdf(x)
         density = self.density_from_sdf(d)
         return density
 

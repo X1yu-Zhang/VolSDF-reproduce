@@ -14,7 +14,7 @@ d_freq = 4
 feature_dim = 256
 radius = 3
 beta = 0.1
-scale = 1
+scale = 20
 
 lr = 5e-4
 lr_decay = 250

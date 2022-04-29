@@ -9,17 +9,16 @@ import os
 import imageio
 import logging
 
-def output2rgb(t, density, output, white_bkgd, device):
+def output2weight(t, density, white_bkgd, device):
     # t = torch.cat([t, torch.Tensor([1e10]).expand([t.shape[0], 1])], dim = -1)
     delta = t[..., 1:] - t[..., :-1]
-    p = torch.exp(-delta * density[...,:-1]) # 1 ... m-1
-    T = torch.cat([torch.zeros([p.shape[0], 1], device=device), torch.cumprod(p, dim = -1)], dim = -1) # 1 ... m
-    tau = torch.cat([(1 - p) * T[..., : -1] , T[..., -1, None]], dim = -1)
-    rgb = torch.sum(tau[..., None] * output, dim = 1)
+    delta = torch.cat([delta, torch.tensor([1e10], device=device).expand([t.shape[0],1])], dim = -1)
+    p = torch.exp(-delta * density) # 1 ... m-1
+    T = torch.cat([torch.ones([p.shape[0], 1], device=device), torch.cumprod(p[..., :-1], dim = -1)], dim = -1) # 1 ... m
+    # tau = torch.cat([(1 - p) * T[..., : -1] , T[..., -1, None]], dim = -1)
+    weight = (1-p) * T
 
-    if white_bkgd:
-        rgb = rgb + (1-torch.sum(tau, dim = -1))[..., None]
-    return rgb
+    return weight
 
 def volume_rendering(rays_o, rays_d, model, device, **rendering_config):
 
@@ -33,19 +32,27 @@ def volume_rendering(rays_o, rays_d, model, device, **rendering_config):
     rays_d = rays_d[:,None,:].expand(pts_shape).reshape([-1,3])
     pts = pts.reshape([-1,3])
 
-    density, output = model(pts, rays_d)
+    density, output, gradient = model(pts, rays_d)
     density = density.reshape(pts_shape[:-1])
     output = output.reshape(pts_shape)
+    gradient = gradient.reshape(pts_shape)
 
-    rgb = output2rgb(t, density, output, white_bkgd, device)
-    gradient = None
+    weight = output2weight(t, density, white_bkgd, device)
 
+    rgb = torch.sum(weight[..., None]*output, dim=1)
+    if white_bkgd:
+        rgb = rgb+(1-torch.sum(tau, dim=-1)[..., None])
+    
     if not rendering_config['render_only']:
         pts_near = pts_loss.reshape([-1,3])
         pts_far = torch.empty(rays_d.shape[0], 3).uniform_(-model.r, model.r).to(device)
         pts_loss = torch.cat([pts_near, pts_far], dim = 0)
         
         gradient = model.gradient(pts_loss)
+    else:
+        gradient = gradient.detach()
+        gradient = gradient / gradient.norm(2, -1, keepdim=True)
+        gradient = torch.sum(weight[..., None]*gradient, dim = 1)
     
     return rgb, gradient
 
@@ -61,10 +68,10 @@ def save_model(ckpt, model, step, optimizer, name):
         'optimizer': optimizer.state_dict(),
         }, path)
 
-def save_img(output, datatype, scan_id, img, **config):
+def save_img(output, datatype, scan_id, img, prefix, **config):
     if not os.path.exists(output):
         os.mkdir(output)
-    path = os.path.join(output, datatype+"_"+"scan{}".format(scan_id)+'.png')
+    path = os.path.join(output, prefix+"_"+datatype+"_"+"scan{}".format(scan_id)+'.png')
     imageio.imwrite(path, img)
     return 
     
@@ -146,20 +153,28 @@ def test(batch_size, device, output, **config):
     rays = get_rays_with_pose(H, W, K, pose)
 
     rgbs = []
+    normals = []
     for i in trange(0, rays.shape[0], batch_size):
         data_slice = rays[i:i+batch_size]
         rays_o, rays_d = torch.split(torch.from_numpy(data_slice).float(), [3,3], dim = -1)
         rays_o = rays_o.to(device)
         rays_d = rays_d.to(device)
 
-        rgb, _ = volume_rendering(rays_o, rays_d, model, **config['rendering_config'])
+        rgb, normal = volume_rendering(rays_o, rays_d, model, **config['rendering_config'])
 
         rgbs.append(rgb.detach().cpu())
+        normals.append(normal.detach().cpu())
 
     rgbs = torch.cat(rgbs, dim = 0).reshape([H, W, 3]).numpy()
-    img_render = to8b(rgbs)
+    normals = torch.cat(normals, dim = 0).reshape([H, W, 3]).numpy()
+    normals = (normals + 1) / 2
 
-    save_img(output, img = img_render, **config['dataset_config'])
+    img_render = to8b(rgbs)
+    normal_map = to8b(normals)
+
+
+    save_img(output, img = img_render, prefix='rgb', **config['dataset_config'])
+    save_img(output, img = normal_map, prefix='normal_map', **config['dataset_config'])
     
     loss = np.mean(np.linalg.norm(rgbs - img, ord=1, axis = -1))
     print("render_loss: ", loss)
