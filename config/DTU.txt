@@ -1,5 +1,4 @@
 datadir = ./data
-white_bkgd = True
 
 N_init = 128
 N_sample = 64

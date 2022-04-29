@@ -93,7 +93,7 @@ def train(lr, lr_decay, N_iters, batch_size, l, i_save, ckpt, device,i_show_loss
                     format='%(asctime)s %(levelname)-8s %(message)s',
                     datefmt='%m-%d %H:%M',
                     filename='./logs/training.log',
-                    filemode='w+')
+                    filemode='w')
     
     with tqdm(total=N_iters - start) as t:
         while global_step < N_iters:
@@ -159,7 +159,7 @@ def test(batch_size, device, output, **config):
     rgbs = torch.cat(rgbs, dim = 0).reshape([H, W, 3]).numpy()
     img_render = to8b(rgbs)
 
-    save_img(output, **config['dataset_config'], img=img_render)
+    save_img(output, img = img_render, **config['dataset_config'])
     
     loss = np.mean(np.linalg.norm(rgbs - img, ord=1, axis = -1))
     print("render_loss: ", loss)

@@ -65,15 +65,15 @@ def create_model(**config):
         posit_network.load_state_dict(state['geometry_network'])   
         render_network.load_state_dict(state['rendering_network'])
         beta = state['beta']
-        start = config['step']
+        start = state['step']
         pass
 
-    model = VolSDF(posit_network, render_network, NeRF, r, beta)
+    model = VolSDF(posit_network, render_network, NeRF, r, float(beta))
     grad_var = list(posit_network.parameters()) + list(render_network.parameters()) + [model.beta]
     optimizer = optim.Adam(params=grad_var, lr=lr, betas=(0.9, 0.999))
 
     if config['pretrained_model'] is not None: 
-        optimizer.load_state_dict(config['optimizer'])
+        optimizer.load_state_dict(state['optimizer'])
 
     print("Done!")
     return optimizer, model, start
@@ -87,7 +87,7 @@ def config():
     ## dataset config
     args.add_argument("--datadir", type=str, default='./data')
     args.add_argument("--datatype", choices=['DTU', 'BlendedMVS'], default="DTU")
-    args.add_argument("--scan_id", type=int, default=24)
+    args.add_argument("--scan_id", type=int, default=65)
     args.add_argument("--white_bkgd", action="store_true")
     
     ## sampling algorithm parameters
