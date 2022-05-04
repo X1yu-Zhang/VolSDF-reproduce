@@ -1,6 +1,5 @@
 __pycache__
 runs
-ckpt
 output
 data/*
 nohup.out

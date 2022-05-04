@@ -11,6 +11,7 @@ from utils import get_rays_rgb
 
 def load_dataset(path, datatype, scan_id, test = 0):
     path = os.path.join(path, datatype, 'scan{}'.format(scan_id))
+    print(path)
     camera_path = os.path.join(path, 'cameras.npz')
     images_path = os.path.join(path, 'image')
 

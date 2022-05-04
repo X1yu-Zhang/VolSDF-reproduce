@@ -5,8 +5,8 @@ from dataset import load_dataset, RaysDataset, load_test_data
 from tqdm import tqdm, trange
 from sample import sampling_algorithm
 from utils import * 
+from plot import *
 import os
-import imageio
 import logging
 
 def output2weight(t, density, white_bkgd, device):
@@ -41,7 +41,7 @@ def volume_rendering(rays_o, rays_d, model, device, **rendering_config):
 
     rgb = torch.sum(weight[..., None]*output, dim=1)
     if white_bkgd:
-        rgb = rgb+(1-torch.sum(tau, dim=-1)[..., None])
+        rgb = rgb+(1-torch.sum(weight, dim=-1)[..., None])
     
     if not rendering_config['render_only']:
         pts_near = pts_loss.reshape([-1,3])
@@ -56,10 +56,10 @@ def volume_rendering(rays_o, rays_d, model, device, **rendering_config):
     
     return rgb, gradient
 
-def save_model(ckpt, model, step, optimizer, name):
+def save_model(ckpt, model, step, optimizer, scan_id, name):
     if not os.path.exists(ckpt):
         os.makedirs(ckpt)
-    path = os.path.join(ckpt, "{}.ckpt".format(name))
+    path = os.path.join(ckpt, "scan{}_{}.ckpt".format(scan_id, name))
     torch.save({
         'geometry_network': model.position_network.state_dict(), 
         'rendering_network': model.radience_field_network.state_dict(),
@@ -68,13 +68,7 @@ def save_model(ckpt, model, step, optimizer, name):
         'optimizer': optimizer.state_dict(),
         }, path)
 
-def save_img(output, datatype, scan_id, img, prefix, **config):
-    if not os.path.exists(output):
-        os.mkdir(output)
-    path = os.path.join(output, prefix+"_"+datatype+"_"+"scan{}".format(scan_id)+'.png')
-    imageio.imwrite(path, img)
-    return 
-    
+
 def train(lr, lr_decay, N_iters, batch_size, l, i_save, ckpt, device,i_show_loss, **others):
     print("creating model...")
     optimizer, model, start = create_model(**others['model_config'])
@@ -88,6 +82,7 @@ def train(lr, lr_decay, N_iters, batch_size, l, i_save, ckpt, device,i_show_loss
     print("done!")
 
     global_step = start
+    scan_id = others['dataset_config']['scan_id']
     loss_avg = 0.
     rgb_avg = 0.
     eik_avg = 0.
@@ -127,7 +122,7 @@ def train(lr, lr_decay, N_iters, batch_size, l, i_save, ckpt, device,i_show_loss
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = new_lrate
                 if global_step % i_save == 0:
-                    save_model(ckpt, model, global_step, optimizer, global_step)
+                    save_model(ckpt, model, global_step, optimizer, scan_id, global_step)
 
                 rgb_avg += float(rgb_loss)
                 eik_avg += float(eik_loss)
@@ -167,15 +162,9 @@ def test(batch_size, device, output, **config):
 
     rgbs = torch.cat(rgbs, dim = 0).reshape([H, W, 3]).numpy()
     normals = torch.cat(normals, dim = 0).reshape([H, W, 3]).numpy()
-    normals = (normals + 1) / 2
 
-    img_render = to8b(rgbs)
-    normal_map = to8b(normals)
+    plot(output, model, rgbs=rgbs, normal_map=normals, **config['dataset_config'])
 
-
-    save_img(output, img = img_render, prefix='rgb', **config['dataset_config'])
-    save_img(output, img = normal_map, prefix='normal_map', **config['dataset_config'])
-    
     loss = np.mean(np.linalg.norm(rgbs - img, ord=1, axis = -1))
     print("render_loss: ", loss)
     pass

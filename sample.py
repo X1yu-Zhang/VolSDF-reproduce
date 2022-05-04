@@ -117,8 +117,8 @@ def sampling_algorithm(rays_o, rays_d, model, near, radius, epsilon, N_init, N_s
         for i in range(search_iter):
             beta_mid = (beta_l + beta_r) / 2
             B_beta_star = get_max_error_bound(delta, sdf, beta_mid, d_star)
-            beta_l[B_beta_star <= epsilon] = beta_mid[B_beta_star <= epsilon]
-            beta_r[B_beta_star > epsilon] = beta_mid[B_beta_star > epsilon]
+            beta_r[B_beta_star <= epsilon] = beta_mid[B_beta_star <= epsilon]
+            beta_l[B_beta_star > epsilon] = beta_mid[B_beta_star > epsilon]
 
         beta_p = beta_r
         iter += 1

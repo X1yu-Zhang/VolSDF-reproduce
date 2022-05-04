@@ -18,7 +18,17 @@ Please refer to the procedure in official github.
 
 ```shell
 
-python train.py --config CONFIG_FILE 
+python train.py --config ./config/DTU.txt \{--pretrained_model CKPT\}
+
+```
+
+`--pretrained_model` is used to resume training.
+
+### test
+
+```shell
+
+python train.py --config ./config/DTU.txt \{--pretrained_model CKPT\} --scan_id SCAN_ID --render_only
 
 ```
 

@@ -51,10 +51,7 @@ class GeometryNetwork(nn.Module):
         )
 
         for idx, layer in enumerate(self.pts_linears):
-            if idx == D - 1:
-                nn.init.normal_(layer.weight, mean=np.sqrt(np.pi) / np.sqrt(W), std=0.0001)
-                nn.init.constant_(layer.bias, -bias)
-            elif idx == 0 and embed_length > 0:
+            if idx == 0 and embed_length > 0:
                 nn.init.constant_(layer.bias, 0)
                 nn.init.constant_(layer.weight[:, 3:], 0)
                 nn.init.normal_(layer.weight[:, 3], 0, np.sqrt(2) / np.sqrt(W))
@@ -71,11 +68,10 @@ class GeometryNetwork(nn.Module):
 
             layer = nn.utils.weight_norm(layer)
         self.feature_linear = nn.Linear(W, output_dim + 1)
-        nn.init.constant_(self.feature_linear.bias, 0)
-        nn.init.normal_(self.feature_linear.weight, 0, np.sqrt(2)/np.sqrt(W+1))
+        nn.init.constant_(self.feature_linear.bias, -bias)
+        nn.init.normal_(self.feature_linear.weight, np.sqrt(2)/np.sqrt(W+1), std=0.0001)
         self.feature_linear = nn.utils.weight_norm(self.feature_linear)
         self.softplus = nn.Softplus(beta = 100)
-
     def output(self, x):
         x = self.embedding.embed(x)
         h = x
@@ -120,6 +116,9 @@ class RadienceFieldNetwork(nn.Module):
             [nn.Linear(self.input_dim, W)]+[nn.Linear(W, W) for i in range(D-1)] + [nn.Linear(W, self.output_dim)]
         )
 
+        for i, model in enumerate(self.pts_linears):
+            model = nn.utils.weight_norm(model)
+
     def forward(self, points, view, normals, feature):
         view = self.embedding.embed(view)
         x = torch.cat([points, view, normals, feature], dim = -1)
@@ -138,6 +137,7 @@ class VolSDF(nn.Module):
         self.position_network = position_network
         self.radience_field_network = rendering_network
         self.NeRF = NeRF
+        self.device = device
 
         self.beta = nn.Parameter(torch.tensor(beta, device=device))
         self.r = r
@@ -162,7 +162,7 @@ class VolSDF(nn.Module):
 
     def density(self, x):
         sdf = self.position_network.sdf(x)
-        density = self.density_from_sdf(d)
+        density = self.density_from_sdf(sdf)
         return density
 
 class NeRF(nn.Module):

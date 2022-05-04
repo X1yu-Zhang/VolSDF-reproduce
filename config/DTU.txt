@@ -17,7 +17,7 @@ beta = 0.1
 scale = 20
 
 lr = 5e-4
-lr_decay = 250
+lr_decay = 100
 training_iters = 100000
 batch_size = 1024
 lambda = 0.1
